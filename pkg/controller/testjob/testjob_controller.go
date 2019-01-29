@@ -38,6 +38,7 @@ import (
 )
 
 var log = logf.Log.WithName("controller")
+var cnt_size = 0
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -153,6 +154,8 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
+
+
 	// TODO(user): Change this for the object type created by your controller
 	// Update the found object and write the result back if there are any changes
 	if !reflect.DeepEqual(deploy.Spec, found.Spec) {
@@ -161,6 +164,21 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 		err = r.Update(context.TODO(), found)
 		if err != nil {
 			return reconcile.Result{}, err
+		}
+		println("!")
+		println(instance.Status.NeedScheduling)
+		instance.Status.NeedScheduling = true
+		cnt_size++
+		instance.Annotations = map[string]string{"whoami": "yzs"}
+		err = r.Update(context.TODO(), instance)
+		//err = r.Status().Update(context.Background(), instance)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		println(cnt_size)
+		println("!")
+		if cnt_size > 5 {
+			cnt_size = 0
 		}
 	}
 	return reconcile.Result{}, nil
