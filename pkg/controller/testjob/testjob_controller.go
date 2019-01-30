@@ -140,14 +140,6 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 			},
 		},
 	}
-	dpod := corev1.Pod{
-		Spec:corev1.PodSpec{
-			NodeSelector: map[string]string{"test": "test"},
-		},
-	}
-	r.Create(context.TODO(), dpod)
-
-
 
 	if err := controllerutil.SetControllerReference(instance, deploy, r.scheme); err != nil {
 		return reconcile.Result{}, err
