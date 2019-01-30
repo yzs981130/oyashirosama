@@ -104,6 +104,7 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 	// Fetch the TestJob instance
 	instance := &schedulerv1alpha1.TestJob{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
+	println(instance.Labels["whoami"])
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
@@ -134,10 +135,20 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 							Image: "nginx",
 						},
 					},
+					NodeSelector: map[string]string{"disktype": "ssd"},
 				},
 			},
 		},
 	}
+	dpod := corev1.Pod{
+		Spec:corev1.PodSpec{
+			NodeSelector: map[string]string{"test": "test"},
+		},
+	}
+	r.Create(context.TODO(), dpod)
+
+
+
 	if err := controllerutil.SetControllerReference(instance, deploy, r.scheme); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -148,13 +159,17 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 	err = r.Get(context.TODO(), types.NamespacedName{Name: deploy.Name, Namespace: deploy.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
 		log.Info("Creating Deployment", "namespace", deploy.Namespace, "name", deploy.Name)
+
+		instance.Status.Running = false
+		instance.Status.NeedScheduling = true
+		err = r.Update(context.TODO(), instance)
+
+		//println("running: ", instance.Status.Running)
 		err = r.Create(context.TODO(), deploy)
 		return reconcile.Result{}, err
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
-
-
 
 	// TODO(user): Change this for the object type created by your controller
 	// Update the found object and write the result back if there are any changes
@@ -165,17 +180,21 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		println("!")
-		println(instance.Status.NeedScheduling)
-		instance.Status.NeedScheduling = true
+		//println("!")
+		//println(instance.Status.NeedScheduling)
+		instance.Status.NeedScheduling = false
 		cnt_size++
-		instance.Annotations = map[string]string{"whoami": "yzs"}
+		//instance.Labels["whoami"] = "yzs"
+		for t := range instance.Labels {
+			println(t)
+		}
 		err = r.Update(context.TODO(), instance)
 		//err = r.Status().Update(context.Background(), instance)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 		println(cnt_size)
+
 		println("!")
 		if cnt_size > 5 {
 			cnt_size = 0
