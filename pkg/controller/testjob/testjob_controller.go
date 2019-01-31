@@ -104,7 +104,6 @@ func (r *ReconcileTestJob) Reconcile(request reconcile.Request) (reconcile.Resul
 	// Fetch the TestJob instance
 	instance := &schedulerv1alpha1.TestJob{}
 	err := r.Get(context.TODO(), request.NamespacedName, instance)
-	println(instance.Labels["whoami"])
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
