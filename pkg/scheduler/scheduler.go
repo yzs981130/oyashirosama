@@ -8,6 +8,10 @@ import (
 var log = logf.Log.WithName("scheduler")
 var JobStatusData JobStatus
 
+func init(){
+	JobStatusData.init()
+}
+
 
 func SetJobStatus(deploymentName string, status string) error {
 	log.Info("SetJobStatus begin with", "deploymentName", deploymentName, "status", status)
