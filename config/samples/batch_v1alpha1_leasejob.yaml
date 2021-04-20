@@ -1,0 +1,7 @@
+apiVersion: batch.pkg.yezhisheng.me/v1alpha1
+kind: LeaseJob
+metadata:
+  name: leasejob-sample
+spec:
+  # Add fields here
+  foo: bar

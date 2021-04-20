@@ -1,0 +1,20 @@
+# permissions for end users to view leasejobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: leasejob-viewer-role
+rules:
+- apiGroups:
+  - batch.pkg.yezhisheng.me
+  resources:
+  - leasejobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch.pkg.yezhisheng.me
+  resources:
+  - leasejobs/status
+  verbs:
+  - get

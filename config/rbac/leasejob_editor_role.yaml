@@ -1,0 +1,24 @@
+# permissions for end users to edit leasejobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: leasejob-editor-role
+rules:
+- apiGroups:
+  - batch.pkg.yezhisheng.me
+  resources:
+  - leasejobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch.pkg.yezhisheng.me
+  resources:
+  - leasejobs/status
+  verbs:
+  - get
