@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
@@ -43,6 +44,11 @@ var (
 	apiGVStr                = batchv1alpha1.GroupVersion.String()
 	leaseTerm               = time.Minute
 	scheduledTimeAnnotation = "batch.pkg.yezhisheng.me/scheduled-at"
+)
+
+var (
+	firstCreate  = 0
+	expiryCreate = 1
 )
 
 // +kubebuilder:rbac:groups=batch.pkg.yezhisheng.me,resources=leasejobs,verbs=get;list;watch;create;update;patch;delete
@@ -116,7 +122,7 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// check if lease expiry
 		for _, job := range activeJobs {
 			if isLeaseExpiry(job) {
-				newVcJob := r.constructVcJobForLeaseJob(&leaseJob, leaseJob.Spec.ResumeArgs)
+				newVcJob := r.constructVcJobForLeaseJob(&leaseJob, expiryCreate)
 				if err := r.Create(ctx, newVcJob); err != nil && !errors.IsAlreadyExists(err) {
 					log.Error(err, "unable to create next VC job")
 					return ctrl.Result{}, err
@@ -129,20 +135,45 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	if len(activeJobs) == 0 {
-		newVcJob := r.constructVcJobForLeaseJob(&leaseJob, leaseJob.Spec.ColdStartArgs)
+	if activeJobs == nil {
+		newVcJob := r.constructVcJobForLeaseJob(&leaseJob, firstCreate)
 		if err := r.Create(ctx, newVcJob); err != nil && !errors.IsAlreadyExists(err) {
 			log.Error(err, "unable to create next VC job")
 			return ctrl.Result{}, err
 		}
+		leaseJob.Status.CurrentLeaseJobCnt = 1
+	}
+
+	// update leaseJob
+	if err := r.Update(ctx, &leaseJob); err != nil {
+		log.Error(err, "unable to update leaseJob")
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
 func (r *LeaseJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(&vcbatch.Job{}, jobOwnerKey, func(rawObj runtime.Object) []string {
+		// grab the job object, extract the owner...
+		job := rawObj.(*vcbatch.Job)
+		owner := metav1.GetControllerOf(job)
+		if owner == nil {
+			return nil
+		}
+		// ...make sure it's a CronJob...
+		if owner.APIVersion != apiGVStr || owner.Kind != "LeaseJob" {
+			return nil
+		}
+
+		// ...and if so, return it
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&batchv1alpha1.LeaseJob{}).
+		Owns(&vcbatch.Job{}).
 		Complete(r)
 }
 
@@ -167,12 +198,22 @@ func isLeaseExpiry(job *vcbatch.Job) bool {
 	return startTime.Add(leaseTerm).Before(time.Now())
 }
 
-func (r *LeaseJobReconciler) constructVcJobForLeaseJob(leaseJob *batchv1alpha1.LeaseJob, startCmd []string) *vcbatch.Job {
+func (r *LeaseJobReconciler) constructVcJobForLeaseJob(leaseJob *batchv1alpha1.LeaseJob, createType int) *vcbatch.Job {
+	var startCmd []string
+	newLeaseCnt := leaseJob.Status.CurrentLeaseJobCnt + 1
+	vcJobName := "yzs-job"
+	vcTaskName := "yzs-job-task"
+	if createType == firstCreate {
+		startCmd = leaseJob.Spec.ColdStartArgs
+	} else if createType == expiryCreate {
+		startCmd = leaseJob.Spec.ResumeArgs
+	}
+
 	job := &vcbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      make(map[string]string),
 			Annotations: make(map[string]string),
-			Name:        "",
+			Name:        fmt.Sprintf("%s-%d", vcJobName, newLeaseCnt),
 			Namespace:   leaseJob.Namespace,
 		},
 		Spec: vcbatch.JobSpec{
@@ -184,7 +225,7 @@ func (r *LeaseJobReconciler) constructVcJobForLeaseJob(leaseJob *batchv1alpha1.L
 	}
 	for i := range job.Spec.Tasks {
 		job.Spec.Tasks[i] = vcbatch.TaskSpec{
-			Name:     "",
+			Name:     fmt.Sprintf("%s-%d-%d", vcTaskName, newLeaseCnt, i),
 			Replicas: 1,
 			Template: *leaseJob.Spec.Template.DeepCopy(),
 		}
