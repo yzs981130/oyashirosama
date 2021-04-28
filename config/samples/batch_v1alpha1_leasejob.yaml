@@ -5,3 +5,25 @@ metadata:
 spec:
   # Add fields here
   foo: bar
+  podNumber: 2  #表示同时执行的pod数
+  coldStartArgs: ["sleep", "5"]
+  resumeArgs: ["sleep", "10"]
+  queue: default
+  template:
+    spec:
+      containers:
+        - image: busybox
+          imagePullPolicy: IfNotPresent
+          name: test
+          #command: ["sleep", "1000"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+              # nvidia.com/gpu: "1"
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              # nvidia.com/gpu: "1"
+      restartPolicy: Never
+      schedulerName: volcano
