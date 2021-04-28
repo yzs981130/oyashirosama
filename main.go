@@ -28,6 +28,7 @@ import (
 
 	batchv1alpha1 "pkg.yezhisheng.me/oyashirosama/api/v1alpha1"
 	"pkg.yezhisheng.me/oyashirosama/controllers"
+	vcbatch "pkg.yezhisheng.me/volcano/pkg/apis/batch/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -40,6 +41,8 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = batchv1alpha1.AddToScheme(scheme)
+
+	_ = vcbatch.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
