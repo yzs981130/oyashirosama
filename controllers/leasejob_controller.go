@@ -65,6 +65,13 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	defer func() {
+		// update leaseJob
+		if err := r.Update(ctx, &leaseJob); err != nil {
+			log.Error(err, "unable to update leaseJob")
+		}
+	}()
+
 	// list vc jobs match jobOwnerKey
 	var childJobs vcbatch.JobList
 	if err := r.List(ctx, &childJobs, client.InNamespace(req.Namespace), client.MatchingFields{jobOwnerKey: req.Name}); err != nil {
@@ -112,16 +119,11 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.V(1).Info("job count", "active jobs", len(activeJobs), "successful jobs", len(successfulJobs), "failed jobs", len(failedJobs))
 
-	// update leaseJob
-	if err := r.Update(ctx, &leaseJob); err != nil {
-		log.Error(err, "unable to update leaseJob")
-		return ctrl.Result{}, err
-	}
-
 	if len(activeJobs) == 1 {
 		// check if lease expiry
 		for _, job := range activeJobs {
 			if isLeaseExpiry(job) {
+				leaseJob.Status.CurrentLeaseJobCnt++
 				newVcJob := r.constructVcJobForLeaseJob(&leaseJob, expiryCreate)
 				if err := r.Create(ctx, newVcJob); err != nil && !errors.IsAlreadyExists(err) {
 					log.Error(err, "unable to create next VC job")
@@ -131,6 +133,7 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					log.Error(err, "unable to delete current lease expiring job")
 					return ctrl.Result{}, err
 				}
+				return ctrl.Result{RequeueAfter: leaseTerm}, nil
 			}
 		}
 	}
@@ -142,12 +145,7 @@ func (r *LeaseJobReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, err
 		}
 		leaseJob.Status.CurrentLeaseJobCnt = 1
-	}
-
-	// update leaseJob
-	if err := r.Update(ctx, &leaseJob); err != nil {
-		log.Error(err, "unable to update leaseJob")
-		return ctrl.Result{}, err
+		return ctrl.Result{RequeueAfter: leaseTerm}, nil
 	}
 
 	return ctrl.Result{}, nil
